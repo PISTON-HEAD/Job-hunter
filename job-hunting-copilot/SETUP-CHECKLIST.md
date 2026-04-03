@@ -2,6 +2,8 @@
 
 **Use this checklist to track your progress through setup. Check off each item as you complete it.**
 
+> 📖 **Before starting:** Read `INDIA-SETUP-EXPLAINED.md` first — it explains the whole workflow in simple terms.
+
 ---
 
 ## 📋 Phase 1: Prerequisites (Day 1)
@@ -108,13 +110,22 @@
   - [ ] `YOUR_NAME="Your Name"`
   - [ ] `YOUR_EMAIL=your@email.com`
   - [ ] `YOUR_GITHUB=github.com/username`
+  - [ ] `MIN_SALARY_LPA=18` ← set to a number OR `0` to disable salary filter
 - [ ] Restarted N8N
 - [ ] Verified variables: `docker exec n8n printenv | Select-String "INDEED"`
+
+> **`MIN_SALARY_LPA` quick reference:**
+> | Value | Behaviour |
+> |-------|-----------|
+> | `18` | Only show jobs ≥ 18 LPA |
+> | `25` | Only show jobs ≥ 25 LPA |
+> | `0` | **Disable filter** — show all salary jobs |
+> | _(not set)_ | Disabled (same as `0`) |
 
 **NPM Method:**
 
 - [ ] Created `.env` file in `~/.n8n/`
-- [ ] Added all variables above
+- [ ] Added all variables above (including `MIN_SALARY_LPA`)
 - [ ] Restarted N8N
 
 ---
@@ -216,17 +227,17 @@
 
 ### Update Search Keywords
 
-**For each API node, verify search keywords:**
+**For each API node, verify search keywords (already set for India):**
 
-- [ ] LinkedIn Jobs RSS: `keywords=Java%20Spring%20Boot`
-- [ ] Indeed API: `q=java spring boot`
-- [ ] Adzuna API: `what=java spring boot`
-- [ ] RemoteOK: (filters in code node)
-- [ ] WeWorkRemotely: (RSS is general programming)
+- [ ] LinkedIn Jobs RSS: `keywords=Java Spring Boot`, `location=India` ✅ Already set
+- [ ] Indeed API: `q=java spring boot`, `l=India` ✅ Already set
+- [ ] Adzuna API: `what=java spring boot`, `where=India` ✅ Already set (India API)
+- [ ] RemoteOK: filters in code node (remote jobs = India-friendly)
+- [ ] WeWorkRemotely: RSS is general programming (remote = India-friendly)
 
 **Optionally customize:**
 
-- [ ] Added your preferred location
+- [ ] Added preferred city (e.g., Bangalore, Pune, Hyderabad, Mumbai)
 - [ ] Adjusted experience level filter
 - [ ] Set remote/hybrid/onsite preference
 
@@ -375,12 +386,11 @@
 ### Schedule Setup
 
 - [ ] Opened "Daily Schedule (8 AM)" trigger node
-- [ ] Configured schedule:
-  - [ ] Mode: Days of Week
-  - [ ] Days: Monday-Friday (or your preference)
-  - [ ] Time: 08:00 (or your preference)
-  - [ ] Timezone: YOUR_TIMEZONE
+- [ ] Schedule is pre-configured as cron: `0 8 * * 1-5` (Mon-Fri at 8 AM)
+- [ ] Verify the cron expression shows in the "Expression" field
+- [ ] **Set Timezone to: IST (Asia/Kolkata)** in the node settings
 - [ ] Saved node
+- [ ] _(Optional: change `1-5` to `_` in cron if you want weekends too)\*
 
 ### Activate Workflow
 
@@ -427,7 +437,7 @@
   - [ ] Review total jobs discovered
   - [ ] Calculate application → interview rate
   - [ ] Update YOUR-PROFILE.md with any new skills/projects
-  - [ ] Audit OpenAI costs (should be <$5/month with gpt-4o-mini)
+  - [ ] Audit OpenAI costs (should be <$5/month with gpt-4o-mini; ~₹400/month)
 
 - [ ] **Month 2:**
   - [ ] Analyze which job sources are most effective
@@ -457,7 +467,7 @@
 
 - Interview requests received: \_\_\_
 - Application → Interview rate: \_\_\_\_%
-- Most effective job source: ****\_\_\_****
+- Most effective job source: \***\*\_\_\_\*\***
 
 **Week 4:**
 

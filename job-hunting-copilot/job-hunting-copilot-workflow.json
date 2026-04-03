@@ -1,625 +1,728 @@
-{
-  "name": "Job Hunting Co-Pilot",
-  "nodes": [
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "minutesInterval": 1
-            }
-          ]
-        }
-      },
-      "name": "Daily Schedule (8 AM)",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
-      "position": [250, 300],
-      "notes": "Runs workflow daily at 8:00 AM",
-      "id": "schedule-trigger",
-      "webhookId": "",
-      "credentials": {}
-    },
-    {
-      "parameters": {
-        "url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search",
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "keywords",
-              "value": "Java Spring Boot"
-            },
-            {
-              "name": "location",
-              "value": "India"
-            },
-            {
-              "name": "f_TPR",
-              "value": "r86400"
-            },
-            {
-              "name": "f_WT",
-              "value": "2"
-            },
-            {
-              "name": "start",
-              "value": "0"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "name": "LinkedIn Jobs RSS",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [450, 200],
-      "notes": "Fetch LinkedIn jobs via public RSS (safe, no auth needed)",
-      "id": "linkedin-fetch"
-    },
-    {
-      "parameters": {
-        "url": "http://api.indeed.com/ads/apisearch",
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "publisher",
-              "value": "={{$env.INDEED_PUBLISHER_ID}}"
-            },
-            {
-              "name": "q",
-              "value": "java spring boot"
-            },
-            {
-              "name": "l",
-              "value": "India"
-            },
-            {
-              "name": "sort",
-              "value": "date"
-            },
-            {
-              "name": "jt",
-              "value": "fulltime"
-            },
-            {
-              "name": "fromage",
-              "value": "1"
-            },
-            {
-              "name": "limit",
-              "value": "25"
-            },
-            {
-              "name": "format",
-              "value": "json"
-            },
-            {
-              "name": "v",
-              "value": "2"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "name": "Indeed API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [450, 300],
-      "notes": "Fetch Indeed jobs (requires Publisher ID)",
-      "id": "indeed-fetch"
-    },
-    {
-      "parameters": {
-        "url": "https://api.adzuna.com/v1/api/jobs/in/search/1",
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "app_id",
-              "value": "={{$env.ADZUNA_APP_ID}}"
-            },
-            {
-              "name": "app_key",
-              "value": "={{$env.ADZUNA_APP_KEY}}"
-            },
-            {
-              "name": "results_per_page",
-              "value": "50"
-            },
-            {
-              "name": "what",
-              "value": "java spring boot"
-            },
-            {
-              "name": "where",
-              "value": "India"
-            },
-            {
-              "name": "sort_by",
-              "value": "date"
-            },
-            {
-              "name": "max_days_old",
-              "value": "1"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "name": "Adzuna API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [450, 400],
-      "notes": "Fetch Adzuna jobs (US/UK/AU/EU)",
-      "id": "adzuna-fetch"
-    },
-    {
-      "parameters": {
-        "url": "https://remoteok.com/api",
-        "options": {
-          "headers": {
-            "pairs": [
-              {
-                "name": "User-Agent",
-                "value": "JobCopilot/1.0"
-              }
-            ]
-          }
-        }
-      },
-      "name": "RemoteOK API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [450, 500],
-      "notes": "Fetch RemoteOK jobs (100% remote)",
-      "id": "remoteok-fetch"
-    },
-    {
-      "parameters": {
-        "url": "https://weworkremotely.com/categories/remote-programming-jobs.rss"
-      },
-      "name": "WeWorkRemotely RSS",
-      "type": "n8n-nodes-base.rssFeedRead",
-      "typeVersion": 1,
-      "position": [450, 600],
-      "notes": "Fetch WeWorkRemotely jobs via RSS",
-      "id": "wwr-fetch"
-    },
-    {
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "multiplex",
-        "options": {}
-      },
-      "name": "Merge All Sources",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [650, 400],
-      "notes": "Combine all job sources into single array",
-      "id": "merge-sources"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Normalize job data from different sources and deduplicate\nconst items = $input.all();\nconst jobMap = new Map();\n\nfor (const item of items) {\n  const data = item.json;\n  let normalized = {};\n  \n  // Detect source and normalize\n  if (data.jobtitle) {\n    // Indeed format\n    normalized = {\n      job_id: `indeed_${data.jobkey}`,\n      title: data.jobtitle,\n      company: data.company,\n      location: data.formattedLocation || data.city,\n      description: data.snippet,\n      url: data.url,\n      posted_date: data.date,\n      source: 'indeed',\n      salary: null\n    };\n  } else if (data.results) {\n    // Adzuna format (array)\n    continue; // Will be processed in loop\n  } else if (data.position) {\n    // RemoteOK format\n    normalized = {\n      job_id: `remoteok_${data.id}`,\n      title: data.position,\n      company: data.company,\n      location: data.location || 'Remote',\n      description: data.description,\n      url: data.url,\n      posted_date: data.date,\n      source: 'remoteok',\n      salary: data.salary_max ? `${data.salary_min}-${data.salary_max}` : null\n    };\n  } else if (data.title && data['content:encoded']) {\n    // RSS format (WWR, LinkedIn)\n    normalized = {\n      job_id: `rss_${data.guid || data.link}`,\n      title: data.title,\n      company: data.company || 'Unknown',\n      location: data.location || 'Remote',\n      description: data['content:encoded'] || data.description,\n      url: data.link,\n      posted_date: data.pubDate,\n      source: data.link.includes('linkedin') ? 'linkedin' : 'wwr',\n      salary: null\n    };\n  } else {\n    // Unknown format, skip\n    continue;\n  }\n  \n  // Deduplicate by title + company (case-insensitive)\n  const key = `${normalized.title.toLowerCase()}_${normalized.company.toLowerCase()}`;\n  \n  if (!jobMap.has(key)) {\n    jobMap.set(key, normalized);\n  }\n}\n\n// Convert map back to array\nconst uniqueJobs = Array.from(jobMap.values()).map(job => ({ json: job }));\n\nreturn uniqueJobs;"
-      },
-      "name": "Normalize & Deduplicate",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [850, 400],
-      "notes": "Standardize format and remove duplicates",
-      "id": "normalize-data"
-    },
-    {
-      "parameters": {},
-      "name": "Split Into Items",
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [1050, 400],
-      "notes": "Process each job individually for AI evaluation",
-      "id": "split-items"
-    },
-    {
-      "parameters": {
-        "model": "gpt-4o",
-        "options": {
-          "temperature": 0.3,
-          "maxTokens": 500
-        },
-        "messages": {
-          "values": [
-            {
-              "role": "system",
-              "content": "You are an expert technical recruiter specializing in backend Java positions. Evaluate job descriptions against a candidate's profile.\n\nCANDIDATE PROFILE:\n- Education: B.Tech in Computer Engineering\n- Core Skills: Java 8+, Spring Boot, Spring Data JPA, Spring Security (JWT, OAuth2.0), Microservices\n- Cloud: AWS Certified Cloud Practitioner\n- DevOps: Docker, basic Kubernetes\n- Messaging: Apache Kafka\n- Databases: SQL Server, PostgreSQL\n- Tools: Git, Maven, Gradle\n- Experience: Mid-level (2-4 years)\n- Location: India (open to remote/hybrid/onsite)\n- GitHub: github.com/piston-head\n\nEVALUATION CRITERIA:\n1. Skills Match (50 pts): How many required skills match?\n2. Experience Level (20 pts): Appropriate seniority?\n3. Tech Stack (20 pts): Modern vs legacy?\n4. Growth (10 pts): Learning opportunities?\n\nOUTPUT FORMAT (JSON only):\n{\n  \"match_score\": 85,\n  \"confidence\": \"high\",\n  \"reasoning\": \"Perfect match: requires Spring Boot, JPA, Docker, AWS.\",\n  \"missing_skills\": [\"Kubernetes\"],\n  \"matched_skills\": [\"Java\", \"Spring Boot\", \"JPA\", \"AWS\", \"Docker\"],\n  \"red_flags\": [],\n  \"salary_estimate\": \"90k-110k\",\n  \"recommendation\": \"apply\"\n}\n\nSCORING:\n- 90-100: Perfect match\n- 75-89: Strong match\n- 60-74: Moderate match\n- <60: Poor match"
-            },
-            {
-              "role": "user",
-              "content": "JOB TITLE: {{$json.title}}\nCOMPANY: {{$json.company}}\nLOCATION: {{$json.location}}\n\nJOB DESCRIPTION:\n{{$json.description}}\n\nURL: {{$json.url}}"
-            }
-          ]
-        }
-      },
-      "name": "AI Job Scorer",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [1250, 400],
-      "notes": "AI evaluates each job against your profile (requires OpenAI API key)",
-      "id": "ai-scorer",
-      "credentials": {
-        "openAiApi": {
-          "id": "1",
-          "name": "OpenAI - Job Copilot"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse AI response and add to job data\nconst aiResponse = $json.output;\nlet parsed;\n\ntry {\n  // Extract JSON from response\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback if AI didn't return JSON\n    parsed = {\n      match_score: 50,\n      confidence: 'low',\n      reasoning: 'Failed to parse AI response',\n      matched_skills: [],\n      missing_skills: [],\n      recommendation: 'skip'\n    };\n  }\n} catch (error) {\n  parsed = {\n    match_score: 50,\n    confidence: 'low',\n    reasoning: 'Error parsing response',\n    matched_skills: [],\n    missing_skills: [],\n    recommendation: 'skip'\n  };\n}\n\n// Merge with original job data\nreturn [{\n  json: {\n    ...$('Split Into Items').item.json,\n    ai_evaluation: parsed\n  }\n}];"
-      },
-      "name": "Parse AI Response",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1450, 400],
-      "notes": "Extract JSON from AI response and merge with job data",
-      "id": "parse-ai"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "number": [
-            {
-              "value1": "={{$json.ai_evaluation.match_score}}",
-              "operation": "largerEqual",
-              "value2": 75
-            }
-          ]
-        }
-      },
-      "name": "Filter: Score >= 75",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [1650, 400],
-      "notes": "Only continue with high-match jobs",
-      "id": "filter-score"
-    },
-    {
-      "parameters": {
-        "model": "gpt-4o",
-        "options": {
-          "temperature": 0.7,
-          "maxTokens": 600
-        },
-        "messages": {
-          "values": [
-            {
-              "role": "system",
-              "content": "You are helping a software engineer write a simple, authentic cover letter. Keep it natural and conversational - like a real person talking, not an AI.\n\nIMPORTANT RULES:\n- Keep it SHORT: 150-200 words (3 short paragraphs)\n- Sound HUMAN: Use simple words, vary sentence length, be genuine\n- Be HONEST: Only mention skills the candidate actually has\n- NO fancy words: Avoid 'delighted', 'thrilled', 'excited to leverage'\n- NO generic phrases: Skip 'passion for technology', 'proven track record'\n- Be SPECIFIC: Mention actual tech from the job (Java, Spring Boot, etc.)\n\nSTRUCTURE:\nPara 1 (2-3 sentences): Why this job caught your eye. Be specific about what interests you.\nPara 2 (2-3 sentences): Mention 1-2 relevant things you've worked on. Keep it simple.\nPara 3 (1-2 sentences): Say you'd like to talk more. Include GitHub if relevant.\n\nCANDIDATE INFO:\n- Name: [Your Name]\n- Experience: Java Spring Boot development\n- Skills: Spring Boot, JPA, Security, Docker, AWS basics\n- GitHub: github.com/piston-head\n- Location: India"
-            },
-            {
-              "role": "user",
-              "content": "Write a short, natural cover letter for this job. Make it sound like a real person wrote it - not too formal, not too casual. Only mention skills from the matched list.\n\nCOMPANY: {{$json.company}}\nROLE: {{$json.title}}\nLOCATION: {{$json.location}}\n\nWHAT THEY WANT:\n{{$json.description}}\n\nWHAT YOU HAVE:\nMatched Skills: {{$json.ai_evaluation.matched_skills}}\n\nKEEP IT SIMPLE: Just 3 short paragraphs. Be yourself. Don't oversell."
-            }
-          ]
-        }
-      },
-      "name": "Generate Cover Letter",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [1850, 350],
-      "notes": "AI generates customized cover letter",
-      "id": "cover-letter-gen",
-      "credentials": {
-        "openAiApi": {
-          "id": "1",
-          "name": "OpenAI - Job Copilot"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Add generated cover letter to job data\nconst coverLetter = $json.output;\n\nreturn [{\n  json: {\n    ...$('Filter: Score >= 75').item.json,\n    cover_letter: coverLetter,\n    generated_at: new Date().toISOString()\n  }\n}];"
-      },
-      "name": "Add Cover Letter",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2050, 350],
-      "notes": "Merge cover letter with job data",
-      "id": "add-cover-letter"
-    },
-    {
-      "parameters": {},
-      "name": "Aggregate Results",
-      "type": "n8n-nodes-base.aggregate",
-      "typeVersion": 1,
-      "position": [2250, 400],
-      "notes": "Collect all high-match jobs into array",
-      "id": "aggregate-results"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Create HTML email digest\nconst jobs = $input.all();\nconst today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; background: #f5f5f5; }\n    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }\n    h1 { color: #1a73e8; border-bottom: 3px solid #1a73e8; padding-bottom: 10px; }\n    .job-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0; background: #f9f9f9; }\n    .job-card h2 { color: #333; margin-top: 0; }\n    .company { color: #666; font-size: 18px; font-weight: bold; }\n    .location { color: #888; }\n    .score-high { color: #00aa00; font-size: 24px; font-weight: bold; }\n    .btn { background: #1a73e8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 10px; }\n    .skills { margin: 10px 0; }\n    .skill-tag { background: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 12px; }\n    .cover-letter { background: white; padding: 15px; margin-top: 10px; border-left: 4px solid #1a73e8; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }\n    details { margin-top: 10px; }\n    summary { cursor: pointer; font-weight: bold; color: #1a73e8; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <h1>🎯 Your Daily Job Matches - ${today}</h1>\n    <p>Found <strong>${jobs.length}</strong> high-match jobs for you today!</p>\n    <p style=\"color: #666;\">All cover letters are AI-generated and ready to use. Review, customize if needed, and apply!</p>\n    <hr>\n`;\n\nlet jobsHtml = '';\n\nfor (const item of jobs) {\n  const job = item.json;\n  const eval = job.ai_evaluation;\n  \n  jobsHtml += `\n    <div class=\"job-card\">\n      <h2>${job.title}</h2>\n      <p class=\"company\">🏢 ${job.company}</p>\n      <p class=\"location\">📍 ${job.location}</p>\n      <p class=\"score-high\">Match Score: ${eval.match_score}/100</p>\n      \n      <p><strong>Why it matches:</strong><br>${eval.reasoning}</p>\n      \n      <div class=\"skills\">\n        <strong>✅ Matched Skills:</strong><br>\n        ${eval.matched_skills.map(s => `<span class=\"skill-tag\">${s}</span>`).join(' ')}\n      </div>\n      \n      ${eval.missing_skills.length > 0 ? `\n        <div class=\"skills\">\n          <strong>⚠️ Missing Skills:</strong><br>\n          ${eval.missing_skills.map(s => `<span class=\"skill-tag\">${s}</span>`).join(' ')}\n        </div>\n      ` : ''}\n      \n      ${eval.salary_estimate ? `<p><strong>💰 Estimated Salary:</strong> ${eval.salary_estimate}</p>` : ''}\n      \n      <details>\n        <summary>📄 Your Custom Cover Letter (Click to expand)</summary>\n        <div class=\"cover-letter\">${job.cover_letter || 'Cover letter generation failed'}</div>\n      </details>\n      \n      <a href=\"${job.url}\" class=\"btn\" target=\"_blank\">Apply Now on ${job.source}</a>\n      <p style=\"font-size: 12px; color: #888; margin-top: 10px;\">Source: ${job.source} | Posted: ${job.posted_date}</p>\n    </div>\n  `;\n}\n\nconst footer = `\n    <hr>\n    <p style=\"text-align: center; color: #888; font-size: 14px;\">\n      Job Hunting Co-Pilot • Powered by N8N & OpenAI<br>\n      <em>Remember: Review and customize each application before submitting. Quality over quantity!</em>\n    </p>\n  </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    subject: `🎯 ${jobs.length} Job Match${jobs.length !== 1 ? 'es' : ''} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,\n    html: html + jobsHtml + footer,\n    text: `You have ${jobs.length} high-match jobs today. View the HTML email for details.`,\n    job_count: jobs.length,\n    jobs: jobs.map(j => j.json)\n  }\n}];"
-      },
-      "name": "Format Email Digest",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2450, 400],
-      "notes": "Create beautiful HTML email with all jobs",
-      "id": "format-email"
-    },
-    {
-      "parameters": {
-        "sendTo": "your.email@gmail.com",
-        "subject": "={{$json.subject}}",
-        "emailType": "html",
-        "message": "={{$json.html}}",
-        "options": {}
-      },
-      "name": "Send Email (Gmail)",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [2650, 300],
-      "notes": "Send digest to your email (requires Gmail OAuth)",
-      "id": "send-email",
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "2",
-          "name": "Gmail - Personal"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "text": "=🎯 *Daily Job Matches* - {{$now.format('MMM D')}}\n\nFound *{{$json.job_count}}* high-match jobs!\n\n{{$json.jobs.map(j => `\n━━━━━━━━━━━━━━━\n*${j.title}*\n🏢 ${j.company}\n📍 ${j.location}\n📊 Match: *${j.ai_evaluation.match_score}/100*\n\n✅ ${j.ai_evaluation.matched_skills.join(', ')}\n\n_${j.ai_evaluation.reasoning}_\n\n🔗 <${j.url}|Apply Here>\n`).join('\\n')}}",
-        "channel": "#job-alerts",
-        "options": {}
-      },
-      "name": "Post to Slack",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2,
-      "position": [2650, 450],
-      "notes": "Alternative: Post to Slack channel (requires Bot Token)",
-      "id": "send-slack",
-      "credentials": {
-        "slackOAuth2": {
-          "id": "3",
-          "name": "Slack - Job Alerts"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
-        "text": "=🎯 *Daily Job Matches* - {{$now.format('MMM D')}}\n\nFound *{{$json.job_count}}* high-match jobs!\n\n{{$json.jobs.slice(0,3).map(j => `\n━━━━━━━━━━━━━━━\n*${j.title}*\n🏢 ${j.company}\n📍 ${j.location}\n📊 Match: *${j.ai_evaluation.match_score}/100*\n\n✅ ${j.ai_evaluation.matched_skills.join(', ')}\n\n🔗 [Apply](${j.url})\n`).join('\\n')}}",
-        "additionalFields": {
-          "parseMode": "Markdown"
-        }
-      },
-      "name": "Send Telegram",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [2650, 600],
-      "notes": "Alternative: Send via Telegram (requires Bot Token + Chat ID)",
-      "id": "send-telegram",
-      "credentials": {
-        "telegramApi": {
-          "id": "4",
-          "name": "Telegram - Personal"
-        }
-      }
-    }
-  ],
-  "connections": {
-    "Daily Schedule (8 AM)": {
-      "main": [
-        [
-          {
-            "node": "LinkedIn Jobs RSS",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Indeed API",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Adzuna API",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "RemoteOK API",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "WeWorkRemotely RSS",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "LinkedIn Jobs RSS": {
-      "main": [
-        [
-          {
-            "node": "Merge All Sources",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Indeed API": {
-      "main": [
-        [
-          {
-            "node": "Merge All Sources",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Adzuna API": {
-      "main": [
-        [
-          {
-            "node": "Merge All Sources",
-            "type": "main",
-            "index": 2
-          }
-        ]
-      ]
-    },
-    "RemoteOK API": {
-      "main": [
-        [
-          {
-            "node": "Merge All Sources",
-            "type": "main",
-            "index": 3
-          }
-        ]
-      ]
-    },
-    "WeWorkRemotely RSS": {
-      "main": [
-        [
-          {
-            "node": "Merge All Sources",
-            "type": "main",
-            "index": 4
-          }
-        ]
-      ]
-    },
-    "Merge All Sources": {
-      "main": [
-        [
-          {
-            "node": "Normalize & Deduplicate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize & Deduplicate": {
-      "main": [
-        [
-          {
-            "node": "Split Into Items",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Split Into Items": {
-      "main": [
-        [
-          {
-            "node": "AI Job Scorer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Job Scorer": {
-      "main": [
-        [
-          {
-            "node": "Parse AI Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse AI Response": {
-      "main": [
-        [
-          {
-            "node": "Filter: Score >= 75",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Filter: Score >= 75": {
-      "main": [
-        [
-          {
-            "node": "Generate Cover Letter",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Cover Letter": {
-      "main": [
-        [
-          {
-            "node": "Add Cover Letter",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Add Cover Letter": {
-      "main": [
-        [
-          {
-            "node": "Aggregate Results",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Aggregate Results": {
-      "main": [
-        [
-          {
-            "node": "Format Email Digest",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format Email Digest": {
-      "main": [
-        [
-          {
-            "node": "Send Email (Gmail)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Post to Slack",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Send Telegram",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "staticData": null,
-  "tags": [],
-  "triggerCount": 1,
-  "updatedAt": "2026-04-03T00:00:00.000Z",
-  "versionId": "1"
+﻿{
+    "name":  "Job Hunting Co-Pilot",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "rule":  {
+                                                      "interval":  [
+                                                                       {
+                                                                           "field":  "cronExpression",
+                                                                           "expression":  "0 8 * * 1-5"
+                                                                       }
+                                                                   ]
+                                                  }
+                                     },
+                      "name":  "Daily Schedule (8 AM)",
+                      "type":  "n8n-nodes-base.scheduleTrigger",
+                      "typeVersion":  1,
+                      "position":  [
+                                       250,
+                                       300
+                                   ],
+                      "notes":  "Runs workflow daily at 8:00 AM",
+                      "id":  "schedule-trigger",
+                      "webhookId":  "",
+                      "credentials":  {
+
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search",
+                                         "queryParameters":  {
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "keywords",
+                                                                                        "value":  "Java Spring Boot"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "location",
+                                                                                        "value":  "India"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "f_TPR",
+                                                                                        "value":  "r86400"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "f_WT",
+                                                                                        "value":  "2"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "start",
+                                                                                        "value":  "0"
+                                                                                    }
+                                                                                ]
+                                                             },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "LinkedIn Jobs RSS",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  3,
+                      "position":  [
+                                       450,
+                                       200
+                                   ],
+                      "notes":  "Fetch LinkedIn jobs via public RSS (safe, no auth needed)",
+                      "id":  "linkedin-fetch"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://api.indeed.com/ads/apisearch",
+                                         "queryParameters":  {
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "publisher",
+                                                                                        "value":  "={{$env.INDEED_PUBLISHER_ID}}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "q",
+                                                                                        "value":  "java spring boot"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "l",
+                                                                                        "value":  "India"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "sort",
+                                                                                        "value":  "date"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "jt",
+                                                                                        "value":  "fulltime"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "fromage",
+                                                                                        "value":  "1"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "limit",
+                                                                                        "value":  "25"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "format",
+                                                                                        "value":  "json"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "v",
+                                                                                        "value":  "2"
+                                                                                    }
+                                                                                ]
+                                                             },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Indeed API",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  3,
+                      "position":  [
+                                       450,
+                                       300
+                                   ],
+                      "notes":  "Fetch Indeed jobs (requires Publisher ID)",
+                      "id":  "indeed-fetch"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://api.adzuna.com/v1/api/jobs/in/search/1",
+                                         "queryParameters":  {
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "app_id",
+                                                                                        "value":  "={{$env.ADZUNA_APP_ID}}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "app_key",
+                                                                                        "value":  "={{$env.ADZUNA_APP_KEY}}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "results_per_page",
+                                                                                        "value":  "50"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "what",
+                                                                                        "value":  "java spring boot"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "where",
+                                                                                        "value":  "India"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "sort_by",
+                                                                                        "value":  "date"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "max_days_old",
+                                                                                        "value":  "1"
+                                                                                    }
+                                                                                ]
+                                                             },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Adzuna API",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  3,
+                      "position":  [
+                                       450,
+                                       400
+                                   ],
+                      "notes":  "Fetch Adzuna jobs (India - api.adzuna.com/jobs/in/)",
+                      "id":  "adzuna-fetch"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://remoteok.com/api",
+                                         "options":  {
+                                                         "headers":  {
+                                                                         "pairs":  [
+                                                                                       {
+                                                                                           "name":  "User-Agent",
+                                                                                           "value":  "JobCopilot/1.0"
+                                                                                       }
+                                                                                   ]
+                                                                     }
+                                                     }
+                                     },
+                      "name":  "RemoteOK API",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  3,
+                      "position":  [
+                                       450,
+                                       500
+                                   ],
+                      "notes":  "Fetch RemoteOK jobs (100% remote)",
+                      "id":  "remoteok-fetch"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://weworkremotely.com/categories/remote-programming-jobs.rss"
+                                     },
+                      "name":  "WeWorkRemotely RSS",
+                      "type":  "n8n-nodes-base.rssFeedRead",
+                      "typeVersion":  1,
+                      "position":  [
+                                       450,
+                                       600
+                                   ],
+                      "notes":  "Fetch WeWorkRemotely jobs via RSS",
+                      "id":  "wwr-fetch"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "combine",
+                                         "combinationMode":  "multiplex",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Merge All Sources",
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  2,
+                      "position":  [
+                                       650,
+                                       400
+                                   ],
+                      "notes":  "Combine all job sources into single array",
+                      "id":  "merge-sources"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Normalize job data from different sources and deduplicate\r\nconst items = $input.all();\r\nconst jobMap = new Map();\r\n\r\nfor (const item of items) {\r\n  const data = item.json;\r\n  let normalized = {};\r\n\r\n  if (data.jobtitle) {\r\n    // Indeed format\r\n    normalized = {\r\n      job_id: \u0027indeed_\u0027 + data.jobkey,\r\n      title: data.jobtitle,\r\n      company: data.company,\r\n      location: data.formattedLocation || data.city,\r\n      description: data.snippet,\r\n      url: data.url,\r\n      posted_date: data.date,\r\n      source: \u0027indeed\u0027,\r\n      salary: null\r\n    };\r\n\r\n  } else if (data.results \u0026\u0026 Array.isArray(data.results)) {\r\n    // Adzuna format - process each job in results array\r\n    for (const result of data.results) {\r\n      if (!result.title) continue;\r\n      const adzunaJob = {\r\n        job_id: \u0027adzuna_\u0027 + (result.id || Date.now()),\r\n        title: result.title,\r\n        company: result.company ? result.company.display_name : \u0027Unknown\u0027,\r\n        location: result.location ? result.location.display_name : \u0027India\u0027,\r\n        description: result.description || result.title,\r\n        url: result.redirect_url || \u0027\u0027,\r\n        posted_date: result.created || new Date().toISOString(),\r\n        source: \u0027adzuna\u0027,\r\n        salary: result.salary_max ? (Math.round((result.salary_min||0)/100000) + \u0027-\u0027 + Math.round(result.salary_max/100000) + \u0027 LPA\u0027) : null\r\n      };\r\n      const adzunaKey = adzunaJob.title.toLowerCase() + \u0027_\u0027 + adzunaJob.company.toLowerCase();\r\n      if (!jobMap.has(adzunaKey)) { jobMap.set(adzunaKey, adzunaJob); }\r\n    }\r\n    continue;\r\n\r\n  } else if (data.position) {\r\n    // RemoteOK format\r\n    normalized = {\r\n      job_id: \u0027remoteok_\u0027 + data.id,\r\n      title: data.position,\r\n      company: data.company,\r\n      location: data.location || \u0027Remote\u0027,\r\n      description: data.description,\r\n      url: data.url,\r\n      posted_date: data.date,\r\n      source: \u0027remoteok\u0027,\r\n      salary: data.salary_max ? (data.salary_min + \u0027-\u0027 + data.salary_max) : null\r\n    };\r\n\r\n  } else if (data.title \u0026\u0026 data[\u0027content:encoded\u0027]) {\r\n    // RSS format (WeWorkRemotely, LinkedIn)\r\n    normalized = {\r\n      job_id: \u0027rss_\u0027 + (data.guid || data.link),\r\n      title: data.title,\r\n      company: data.company || \u0027Unknown\u0027,\r\n      location: data.location || \u0027Remote\u0027,\r\n      description: data[\u0027content:encoded\u0027] || data.description,\r\n      url: data.link,\r\n      posted_date: data.pubDate,\r\n      source: data.link.includes(\u0027linkedin\u0027) ? \u0027linkedin\u0027 : \u0027wwr\u0027,\r\n      salary: null\r\n    };\r\n\r\n  } else {\r\n    continue;\r\n  }\r\n\r\n  const key = normalized.title.toLowerCase() + \u0027_\u0027 + normalized.company.toLowerCase();\r\n  if (!jobMap.has(key)) {\r\n    jobMap.set(key, normalized);\r\n  }\r\n}\r\n\r\nconst uniqueJobs = Array.from(jobMap.values()).map(job =\u003e ({ json: job }));\r\nreturn uniqueJobs;"
+                                     },
+                      "name":  "Normalize \u0026 Deduplicate",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       850,
+                                       400
+                                   ],
+                      "notes":  "Standardize format and remove duplicates",
+                      "id":  "normalize-data"
+                  },
+                  {
+                      "parameters":  {
+
+                                     },
+                      "name":  "Split Into Items",
+                      "type":  "n8n-nodes-base.splitInBatches",
+                      "typeVersion":  3,
+                      "position":  [
+                                       1050,
+                                       400
+                                   ],
+                      "notes":  "Process each job individually for AI evaluation",
+                      "id":  "split-items"
+                  },
+                  {
+                      "parameters":  {
+                                         "model":  "gpt-4o",
+                                         "options":  {
+                                                         "temperature":  0.3,
+                                                         "maxTokens":  500
+                                                     },
+                                         "messages":  {
+                                                          "values":  [
+                                                                         {
+                                                                             "role":  "system",
+                                                                             "content":  "You are an expert technical recruiter specializing in backend Java positions. Evaluate job descriptions against a candidate\u0027s profile.\n\nCANDIDATE PROFILE:\n- Education: B.Tech in Computer Engineering\n- Core Skills: Java 8+, Spring Boot, Spring Data JPA, Spring Security (JWT, OAuth2.0), Microservices\n- Cloud: AWS Certified Cloud Practitioner\n- DevOps: Docker, basic Kubernetes\n- Messaging: Apache Kafka\n- Databases: SQL Server, PostgreSQL\n- Tools: Git, Maven, Gradle\n- Experience: Mid-level (2-4 years)\n- Salary Expectation: Minimum 18 LPA or above preferred (configurable). Flag as red_flag if job salary clearly states below 15 LPA. If no salary mentioned, do NOT penalize.\n- Location: India (open to remote/hybrid/onsite)\n- GitHub: github.com/piston-head\n\nEVALUATION CRITERIA:\n1. Skills Match (50 pts): How many required skills match?\n2. Experience Level (20 pts): Appropriate seniority?\n3. Tech Stack (20 pts): Modern vs legacy?\n4. Growth (10 pts): Learning opportunities?\n\nOUTPUT FORMAT (JSON only):\n{\n  \"match_score\": 85,\n  \"confidence\": \"high\",\n  \"reasoning\": \"Perfect match: requires Spring Boot, JPA, Docker, AWS.\",\n  \"missing_skills\": [\"Kubernetes\"],\n  \"matched_skills\": [\"Java\", \"Spring Boot\", \"JPA\", \"AWS\", \"Docker\"],\n  \"red_flags\": [],\n  \"salary_estimate\": \"15-25 LPA\",\n  \"recommendation\": \"apply\",`n  \"salary_note\": \"above 18 LPA / unknown\"\n}\n\nSCORING:\n- 90-100: Perfect match\n- 75-89: Strong match\n- 60-74: Moderate match\n- \u003c60: Poor match"
+                                                                         },
+                                                                         {
+                                                                             "role":  "user",
+                                                                             "content":  "JOB TITLE: {{$json.title}}\nCOMPANY: {{$json.company}}\nLOCATION: {{$json.location}}\n\nJOB DESCRIPTION:\n{{$json.description}}\n\nURL: {{$json.url}}"
+                                                                         }
+                                                                     ]
+                                                      }
+                                     },
+                      "name":  "AI Job Scorer",
+                      "type":  "@n8n/n8n-nodes-langchain.openAi",
+                      "typeVersion":  1,
+                      "position":  [
+                                       1250,
+                                       400
+                                   ],
+                      "notes":  "AI evaluates each job against your profile (requires OpenAI API key)",
+                      "id":  "ai-scorer",
+                      "credentials":  {
+                                          "openAiApi":  {
+                                                            "id":  "1",
+                                                            "name":  "OpenAI - Job Copilot"
+                                                        }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Parse AI response and add to job data\nconst aiResponse = $json.output;\nlet parsed;\n\ntry {\n  // Extract JSON from response\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback if AI didn\u0027t return JSON\n    parsed = {\n      match_score: 50,\n      confidence: \u0027low\u0027,\n      reasoning: \u0027Failed to parse AI response\u0027,\n      matched_skills: [],\n      missing_skills: [],\n      recommendation: \u0027skip\u0027\n    };\n  }\n} catch (error) {\n  parsed = {\n    match_score: 50,\n    confidence: \u0027low\u0027,\n    reasoning: \u0027Error parsing response\u0027,\n    matched_skills: [],\n    missing_skills: [],\n    recommendation: \u0027skip\u0027\n  };\n}\n\n// Merge with original job data\nreturn [{\n  json: {\n    ...$(\u0027Split Into Items\u0027).item.json,\n    ai_evaluation: parsed\n  }\n}];"
+                                     },
+                      "name":  "Parse AI Response",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1450,
+                                       400
+                                   ],
+                      "notes":  "Extract JSON from AI response and merge with job data",
+                      "id":  "parse-ai"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "number":  [
+                                                                           {
+                                                                               "value1":  "={{$json.ai_evaluation.match_score}}",
+                                                                               "operation":  "largerEqual",
+                                                                               "value2":  75
+                                                                           }
+                                                                       ]
+                                                        }
+                                     },
+                      "name":  "Filter: Score \u003e= 75",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  1,
+                      "position":  [
+                                       1650,
+                                       400
+                                   ],
+                      "notes":  "Only continue with high-match jobs",
+                      "id":  "filter-score"
+                  },
+                  {
+                      "parameters":  {
+                                         "model":  "gpt-4o",
+                                         "options":  {
+                                                         "temperature":  0.7,
+                                                         "maxTokens":  600
+                                                     },
+                                         "messages":  {
+                                                          "values":  [
+                                                                         {
+                                                                             "role":  "system",
+                                                                             "content":  "You are helping a software engineer write a simple, authentic cover letter. Keep it natural and conversational - like a real person talking, not an AI.\n\nIMPORTANT RULES:\n- Keep it SHORT: 150-200 words (3 short paragraphs)\n- Sound HUMAN: Use simple words, vary sentence length, be genuine\n- Be HONEST: Only mention skills the candidate actually has\n- NO fancy words: Avoid \u0027delighted\u0027, \u0027thrilled\u0027, \u0027excited to leverage\u0027\n- NO generic phrases: Skip \u0027passion for technology\u0027, \u0027proven track record\u0027\n- Be SPECIFIC: Mention actual tech from the job (Java, Spring Boot, etc.)\n\nSTRUCTURE:\nPara 1 (2-3 sentences): Why this job caught your eye. Be specific about what interests you.\nPara 2 (2-3 sentences): Mention 1-2 relevant things you\u0027ve worked on. Keep it simple.\nPara 3 (1-2 sentences): Say you\u0027d like to talk more. Include GitHub if relevant.\n\nCANDIDATE INFO:\n- Name: [Your Name]\n- Experience: Java Spring Boot development\n- Skills: Spring Boot, JPA, Security, Docker, AWS basics\n- GitHub: github.com/piston-head\n- Location: India"
+                                                                         },
+                                                                         {
+                                                                             "role":  "user",
+                                                                             "content":  "Write a short, natural cover letter for this job. Make it sound like a real person wrote it - not too formal, not too casual. Only mention skills from the matched list.\n\nCOMPANY: {{$json.company}}\nROLE: {{$json.title}}\nLOCATION: {{$json.location}}\n\nWHAT THEY WANT:\n{{$json.description}}\n\nWHAT YOU HAVE:\nMatched Skills: {{$json.ai_evaluation.matched_skills}}\n\nKEEP IT SIMPLE: Just 3 short paragraphs. Be yourself. Don\u0027t oversell."
+                                                                         }
+                                                                     ]
+                                                      }
+                                     },
+                      "name":  "Generate Cover Letter",
+                      "type":  "@n8n/n8n-nodes-langchain.openAi",
+                      "typeVersion":  1,
+                      "position":  [
+                                       1850,
+                                       350
+                                   ],
+                      "notes":  "AI generates customized cover letter",
+                      "id":  "cover-letter-gen",
+                      "credentials":  {
+                                          "openAiApi":  {
+                                                            "id":  "1",
+                                                            "name":  "OpenAI - Job Copilot"
+                                                        }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Add generated cover letter to job data\nconst coverLetter = $json.output;\n\nreturn [{\n  json: {\n    ...$(\u0027Filter: Score \u003e= 75\u0027).item.json,\n    cover_letter: coverLetter,\n    generated_at: new Date().toISOString()\n  }\n}];"
+                                     },
+                      "name":  "Add Cover Letter",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2050,
+                                       350
+                                   ],
+                      "notes":  "Merge cover letter with job data",
+                      "id":  "add-cover-letter"
+                  },
+                  {
+                      "parameters":  {
+
+                                     },
+                      "name":  "Aggregate Results",
+                      "type":  "n8n-nodes-base.aggregate",
+                      "typeVersion":  1,
+                      "position":  [
+                                       2250,
+                                       400
+                                   ],
+                      "notes":  "Collect all high-match jobs into array",
+                      "id":  "aggregate-results"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// Create HTML email digest\nconst jobs = $input.all();\nconst today = new Date().toLocaleDateString(\u0027en-US\u0027, { year: \u0027numeric\u0027, month: \u0027long\u0027, day: \u0027numeric\u0027 });\n\nconst html = `\n\u003c!DOCTYPE html\u003e\n\u003chtml\u003e\n\u003chead\u003e\n  \u003cstyle\u003e\n    body { font-family: -apple-system, BlinkMacSystemFont, \u0027Segoe UI\u0027, sans-serif; padding: 20px; background: #f5f5f5; }\n    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }\n    h1 { color: #1a73e8; border-bottom: 3px solid #1a73e8; padding-bottom: 10px; }\n    .job-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0; background: #f9f9f9; }\n    .job-card h2 { color: #333; margin-top: 0; }\n    .company { color: #666; font-size: 18px; font-weight: bold; }\n    .location { color: #888; }\n    .score-high { color: #00aa00; font-size: 24px; font-weight: bold; }\n    .btn { background: #1a73e8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 10px; }\n    .skills { margin: 10px 0; }\n    .skill-tag { background: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 12px; }\n    .cover-letter { background: white; padding: 15px; margin-top: 10px; border-left: 4px solid #1a73e8; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }\n    details { margin-top: 10px; }\n    summary { cursor: pointer; font-weight: bold; color: #1a73e8; }\n  \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n  \u003cdiv class=\"container\"\u003e\n    \u003ch1\u003eðŸŽ¯ Your Daily Job Matches - ${today}\u003c/h1\u003e\n    \u003cp\u003eFound \u003cstrong\u003e${jobs.length}\u003c/strong\u003e high-match jobs for you today!\u003c/p\u003e\n    \u003cp style=\"color: #666;\"\u003eAll cover letters are AI-generated and ready to use. Review, customize if needed, and apply!\u003c/p\u003e\n    \u003chr\u003e\n`;\n\nlet jobsHtml = \u0027\u0027;\n\nfor (const item of jobs) {\n  const job = item.json;\n  const jobEval = job.ai_evaluation;\n  \n  jobsHtml += `\n    \u003cdiv class=\"job-card\"\u003e\n      \u003ch2\u003e${job.title}\u003c/h2\u003e\n      \u003cp class=\"company\"\u003eðŸ¢ ${job.company}\u003c/p\u003e\n      \u003cp class=\"location\"\u003eðŸ“ ${job.location}\u003c/p\u003e\n      \u003cp class=\"score-high\"\u003eMatch Score: ${jobEval.match_score}/100\u003c/p\u003e\n      \n      \u003cp\u003e\u003cstrong\u003eWhy it matches:\u003c/strong\u003e\u003cbr\u003e${jobEval.reasoning}\u003c/p\u003e\n      \n      \u003cdiv class=\"skills\"\u003e\n        \u003cstrong\u003eâœ… Matched Skills:\u003c/strong\u003e\u003cbr\u003e\n        ${jobEval.matched_skills.map(s =\u003e `\u003cspan class=\"skill-tag\"\u003e${s}\u003c/span\u003e`).join(\u0027 \u0027)}\n      \u003c/div\u003e\n      \n      ${jobEval.missing_skills.length \u003e 0 ? `\n        \u003cdiv class=\"skills\"\u003e\n          \u003cstrong\u003eâš ï¸ Missing Skills:\u003c/strong\u003e\u003cbr\u003e\n          ${jobEval.missing_skills.map(s =\u003e `\u003cspan class=\"skill-tag\"\u003e${s}\u003c/span\u003e`).join(\u0027 \u0027)}\n        \u003c/div\u003e\n      ` : \u0027\u0027}\n      \n      ${jobEval.salary_estimate ? `\u003cp\u003e\u003cstrong\u003eðŸ’° Estimated Salary:\u003c/strong\u003e ${jobEval.salary_estimate}\u003c/p\u003e` : \u0027\u0027}\n      \n      \u003cdetails\u003e\n        \u003csummary\u003eðŸ“„ Your Custom Cover Letter (Click to expand)\u003c/summary\u003e\n        \u003cdiv class=\"cover-letter\"\u003e${job.cover_letter || \u0027Cover letter generation failed\u0027}\u003c/div\u003e\n      \u003c/details\u003e\n      \n      \u003ca href=\"${job.url}\" class=\"btn\" target=\"_blank\"\u003eApply Now on ${job.source}\u003c/a\u003e\n      \u003cp style=\"font-size: 12px; color: #888; margin-top: 10px;\"\u003eSource: ${job.source} | Posted: ${job.posted_date}\u003c/p\u003e\n    \u003c/div\u003e\n  `;\n}\n\nconst footer = `\n    \u003chr\u003e\n    \u003cp style=\"text-align: center; color: #888; font-size: 14px;\"\u003e\n      Job Hunting Co-Pilot â€¢ Powered by N8N \u0026 OpenAI\u003cbr\u003e\n      \u003cem\u003eRemember: Review and customize each application before submitting. Quality over quantity!\u003c/em\u003e\n    \u003c/p\u003e\n  \u003c/div\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n`;\n\nreturn [{\n  json: {\n    subject: `ðŸŽ¯ ${jobs.length} Job Match${jobs.length !== 1 ? \u0027es\u0027 : \u0027\u0027} - ${new Date().toLocaleDateString(\u0027en-US\u0027, { month: \u0027short\u0027, day: \u0027numeric\u0027 })}`,\n    html: html + jobsHtml + footer,\n    text: `You have ${jobs.length} high-match jobs today. View the HTML email for details.`,\n    job_count: jobs.length,\n    jobs: jobs.map(j =\u003e j.json)\n  }\n}];"
+                                     },
+                      "name":  "Format Email Digest",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2450,
+                                       400
+                                   ],
+                      "notes":  "Create beautiful HTML email with all jobs",
+                      "id":  "format-email"
+                  },
+                  {
+                      "parameters":  {
+                                         "sendTo":  "your.email@gmail.com",
+                                         "subject":  "={{$json.subject}}",
+                                         "emailType":  "html",
+                                         "message":  "={{$json.html}}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Send Email (Gmail)",
+                      "type":  "n8n-nodes-base.gmail",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2650,
+                                       300
+                                   ],
+                      "notes":  "Send digest to your email (requires Gmail OAuth)",
+                      "id":  "send-email",
+                      "credentials":  {
+                                          "gmailOAuth2":  {
+                                                              "id":  "2",
+                                                              "name":  "Gmail - Personal"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "text":  "=ðŸŽ¯ *Daily Job Matches* - {{$now.format(\u0027MMM D\u0027)}}\n\nFound *{{$json.job_count}}* high-match jobs!\n\n{{$json.jobs.map(j =\u003e `\nâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n*${j.title}*\nðŸ¢ ${j.company}\nðŸ“ ${j.location}\nðŸ“Š Match: *${j.ai_evaluation.match_score}/100*\n\nâœ… ${j.ai_evaluation.matched_skills.join(\u0027, \u0027)}\n\n_${j.ai_evaluation.reasoning}_\n\nðŸ”— \u003c${j.url}|Apply Here\u003e\n`).join(\u0027\\n\u0027)}}",
+                                         "channel":  "#job-alerts",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Post to Slack",
+                      "type":  "n8n-nodes-base.slack",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2650,
+                                       450
+                                   ],
+                      "notes":  "Alternative: Post to Slack channel (requires Bot Token)",
+                      "id":  "send-slack",
+                      "credentials":  {
+                                          "slackOAuth2":  {
+                                                              "id":  "3",
+                                                              "name":  "Slack - Job Alerts"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "chatId":  "={{$env.TELEGRAM_CHAT_ID}}",
+                                         "text":  "=ðŸŽ¯ *Daily Job Matches* - {{$now.format(\u0027MMM D\u0027)}}\n\nFound *{{$json.job_count}}* high-match jobs!\n\n{{$json.jobs.slice(0,3).map(j =\u003e `\nâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n*${j.title}*\nðŸ¢ ${j.company}\nðŸ“ ${j.location}\nðŸ“Š Match: *${j.ai_evaluation.match_score}/100*\n\nâœ… ${j.ai_evaluation.matched_skills.join(\u0027, \u0027)}\n\nðŸ”— [Apply](${j.url})\n`).join(\u0027\\n\u0027)}}",
+                                         "additionalFields":  {
+                                                                  "parseMode":  "Markdown"
+                                                              }
+                                     },
+                      "name":  "Send Telegram",
+                      "type":  "n8n-nodes-base.telegram",
+                      "typeVersion":  1,
+                      "position":  [
+                                       2650,
+                                       600
+                                   ],
+                      "notes":  "Alternative: Send via Telegram (requires Bot Token + Chat ID)",
+                      "id":  "send-telegram",
+                      "credentials":  {
+                                          "telegramApi":  {
+                                                              "id":  "4",
+                                                              "name":  "Telegram - Personal"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\r\n// CONFIGURABLE SALARY FILTER\r\n// Set environment variable MIN_SALARY_LPA in N8N:\r\n//   - Number (e.g. 18) =\u003e only keep jobs at or above that LPA\r\n//   - 0 or empty       =\u003e disable filter, all jobs pass through\r\n// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\r\n\r\nconst job = $json;\r\n\r\n// Read the threshold from env var - default 18 if not set\r\nconst minLpaRaw = $env.MIN_SALARY_LPA;\r\nconst minLpa = (minLpaRaw !== undefined \u0026\u0026 minLpaRaw !== null \u0026\u0026 String(minLpaRaw).trim() !== \u0027\u0027 \u0026\u0026 Number(minLpaRaw) \u003e 0)\r\n  ? Number(minLpaRaw)\r\n  : 0;\r\n\r\n// If threshold is 0 or unset - filter is disabled, pass everything\r\nif (minLpa === 0) {\r\n  return [{ json: job }];\r\n}\r\n\r\n// No salary info from AI = pass through (don\u0027t miss unlisted salaries)\r\nconst salaryStr = job.ai_evaluation ? job.ai_evaluation.salary_estimate : null;\r\nif (!salaryStr || String(salaryStr).trim() === \u0027\u0027) {\r\n  return [{ json: job }];\r\n}\r\n\r\n// Parse numbers from strings like \"15-25 LPA\", \"20 LPA\", \"18-30 LPA\", \"20\"\r\nconst numbers = String(salaryStr).match(/\\d+(\\.\\d+)?/g);\r\nif (!numbers || numbers.length === 0) {\r\n  return [{ json: job }]; // Can\u0027t parse = pass through\r\n}\r\n\r\nconst salaryValues = numbers.map(Number);\r\nconst maxSalary = Math.max(...salaryValues);\r\n\r\n// Filter out jobs where even the max salary is below the threshold\r\nif (maxSalary \u003c minLpa) {\r\n  return [];\r\n}\r\n\r\nreturn [{ json: job }];"
+                                     },
+                      "name":  "Salary Filter (\u003e= 18 LPA)",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1850,
+                                       500
+                                   ],
+                      "notes":  "Configurable salary filter. Set MIN_SALARY_LPA env var (e.g. 18). Set to 0 or leave empty to disable.",
+                      "id":  "salary-filter"
+                  }
+              ],
+    "connections":  {
+                        "Daily Schedule (8 AM)":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "LinkedIn Jobs RSS",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       },
+                                                                       {
+                                                                           "node":  "Indeed API",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       },
+                                                                       {
+                                                                           "node":  "Adzuna API",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       },
+                                                                       {
+                                                                           "node":  "RemoteOK API",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       },
+                                                                       {
+                                                                           "node":  "WeWorkRemotely RSS",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "LinkedIn Jobs RSS":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Merge All Sources",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Indeed API":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Merge All Sources",
+                                                                "type":  "main",
+                                                                "index":  1
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Adzuna API":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Merge All Sources",
+                                                                "type":  "main",
+                                                                "index":  2
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "RemoteOK API":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Merge All Sources",
+                                                                  "type":  "main",
+                                                                  "index":  3
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "WeWorkRemotely RSS":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Merge All Sources",
+                                                                        "type":  "main",
+                                                                        "index":  4
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Merge All Sources":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Normalize \u0026 Deduplicate",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Normalize \u0026 Deduplicate":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Split Into Items",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "Split Into Items":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "AI Job Scorer",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "AI Job Scorer":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Parse AI Response",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Parse AI Response":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Filter: Score \u003e= 75",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Filter: Score \u003e= 75":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "Salary Filter (\u003e= 18 LPA)",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "Generate Cover Letter":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Add Cover Letter",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Add Cover Letter":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Aggregate Results",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Aggregate Results":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Format Email Digest",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Format Email Digest":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Send Email (Gmail)",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     },
+                                                                     {
+                                                                         "node":  "Post to Slack",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     },
+                                                                     {
+                                                                         "node":  "Send Telegram",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Salary Filter (\u003e= 18 LPA)":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Generate Cover Letter",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "staticData":  null,
+    "tags":  [
+
+             ],
+    "triggerCount":  1,
+    "updatedAt":  "2026-04-03T00:00:00.000Z",
+    "versionId":  "1"
 }

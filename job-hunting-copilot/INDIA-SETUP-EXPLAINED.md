@@ -362,7 +362,8 @@ Edit these 3 places in the workflow:
 ### 7. Activate Schedule (1 minute)
 
 - Toggle "Active" switch on the workflow
-- It will now run daily at 8:00 AM automatically
+- It will now run **Monday-Friday at 8:00 AM IST** automatically
+- _(The schedule uses cron `0 8 _ _ 1-5` — set timezone to Asia/Kolkata in the trigger node)_
 
 ---
 
