@@ -1,18 +1,34 @@
-# 🚀 Job Hunting Co-Pilot
+# 🚀 Job Hunting Co-Pilot (India-Focused)
 
 **An intelligent N8N workflow that automates 90% of your job hunting work while staying compliant with platform terms of service.**
 
+**🇮🇳 Configured for India job market** - searches Indian companies, startups, and MNC India offices.
+
 ---
 
-## 🎯 What This Does
+## 🎯 What This Does (In Simple Terms)
 
-This workflow will:
+Every morning at 8 AM, this workflow:
 
-- ✅ **Discover jobs** from 5+ sources daily (LinkedIn, Indeed, Adzuna, RemoteOK, WeWorkRemotely)
-- ✅ **AI-evaluate** each job against your specific skills (Java, Spring Boot, JPA, Docker, AWS)
-- ✅ **Generate customized** cover letters and resume highlights
-- ✅ **Send daily digest** with high-match jobs ready for manual submission
-- ❌ **NOT** auto-submit to LinkedIn (to avoid account bans)
+1. **Searches 5 job sites** → Finds Java/Spring Boot jobs in India
+2. **AI filters bad matches** → Keeps only jobs that fit your skills (75+ match score)
+3. **Writes simple cover letters** → Natural-sounding, not AI-like
+4. **Emails you the results** → 10-15 high-quality job listings with:
+   - Direct links to apply
+   - Why each job matches your skills
+   - Ready-to-use cover letter for each
+
+**IMPORTANT:** This does NOT apply to jobs for you. It sends you an email with job links and cover letters. YOU still manually apply by clicking the links.
+
+---
+
+## ✅ What It Does
+
+- ✅ **Discovers jobs** from LinkedIn India, Indeed India, Naukri (via Adzuna India), RemoteOK, WeWorkRemotely
+- ✅ **AI-evaluates** each job against your specific skills (Java, Spring Boot, JPA, Docker, AWS)
+- ✅ **Generates simple, natural** cover letters (not AI-sounding)
+- ✅ **Sends daily email digest** with 10-15 high-match jobs ready for YOU to manually apply
+- ❌ **Does NOT auto-submit** applications (you click links and apply yourself)
 
 ---
 
