@@ -31,7 +31,7 @@
             },
             {
               "name": "location",
-              "value": "Remote"
+              "value": "India"
             },
             {
               "name": "f_TPR",
@@ -71,7 +71,7 @@
             },
             {
               "name": "l",
-              "value": "remote"
+              "value": "India"
             },
             {
               "name": "sort",
@@ -110,7 +110,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.adzuna.com/v1/api/jobs/us/search/1",
+        "url": "https://api.adzuna.com/v1/api/jobs/in/search/1",
         "queryParameters": {
           "parameters": [
             {
@@ -131,7 +131,7 @@
             },
             {
               "name": "where",
-              "value": "remote"
+              "value": "India"
             },
             {
               "name": "sort_by",
@@ -228,7 +228,7 @@
           "values": [
             {
               "role": "system",
-              "content": "You are an expert technical recruiter specializing in backend Java positions. Evaluate job descriptions against a candidate's profile.\n\nCANDIDATE PROFILE:\n- Education: B.Tech in Computer Engineering\n- Core Skills: Java 8+, Spring Boot, Spring Data JPA, Spring Security (JWT, OAuth2.0), Microservices\n- Cloud: AWS Certified Cloud Practitioner\n- DevOps: Docker, basic Kubernetes\n- Messaging: Apache Kafka\n- Databases: SQL Server, PostgreSQL\n- Tools: Git, Maven, Gradle\n- Experience: Mid-level (2-4 years)\n- GitHub: github.com/piston-head\n\nEVALUATION CRITERIA:\n1. Skills Match (50 pts): How many required skills match?\n2. Experience Level (20 pts): Appropriate seniority?\n3. Tech Stack (20 pts): Modern vs legacy?\n4. Growth (10 pts): Learning opportunities?\n\nOUTPUT FORMAT (JSON only):\n{\n  \"match_score\": 85,\n  \"confidence\": \"high\",\n  \"reasoning\": \"Perfect match: requires Spring Boot, JPA, Docker, AWS.\",\n  \"missing_skills\": [\"Kubernetes\"],\n  \"matched_skills\": [\"Java\", \"Spring Boot\", \"JPA\", \"AWS\", \"Docker\"],\n  \"red_flags\": [],\n  \"salary_estimate\": \"90k-110k\",\n  \"recommendation\": \"apply\"\n}\n\nSCORING:\n- 90-100: Perfect match\n- 75-89: Strong match\n- 60-74: Moderate match\n- <60: Poor match"
+              "content": "You are an expert technical recruiter specializing in backend Java positions. Evaluate job descriptions against a candidate's profile.\n\nCANDIDATE PROFILE:\n- Education: B.Tech in Computer Engineering\n- Core Skills: Java 8+, Spring Boot, Spring Data JPA, Spring Security (JWT, OAuth2.0), Microservices\n- Cloud: AWS Certified Cloud Practitioner\n- DevOps: Docker, basic Kubernetes\n- Messaging: Apache Kafka\n- Databases: SQL Server, PostgreSQL\n- Tools: Git, Maven, Gradle\n- Experience: Mid-level (2-4 years)\n- Location: India (open to remote/hybrid/onsite)\n- GitHub: github.com/piston-head\n\nEVALUATION CRITERIA:\n1. Skills Match (50 pts): How many required skills match?\n2. Experience Level (20 pts): Appropriate seniority?\n3. Tech Stack (20 pts): Modern vs legacy?\n4. Growth (10 pts): Learning opportunities?\n\nOUTPUT FORMAT (JSON only):\n{\n  \"match_score\": 85,\n  \"confidence\": \"high\",\n  \"reasoning\": \"Perfect match: requires Spring Boot, JPA, Docker, AWS.\",\n  \"missing_skills\": [\"Kubernetes\"],\n  \"matched_skills\": [\"Java\", \"Spring Boot\", \"JPA\", \"AWS\", \"Docker\"],\n  \"red_flags\": [],\n  \"salary_estimate\": \"90k-110k\",\n  \"recommendation\": \"apply\"\n}\n\nSCORING:\n- 90-100: Perfect match\n- 75-89: Strong match\n- 60-74: Moderate match\n- <60: Poor match"
             },
             {
               "role": "user",
@@ -291,11 +291,11 @@
           "values": [
             {
               "role": "system",
-              "content": "You are a professional cover letter writer for software engineers. Write concise, compelling 3-paragraph cover letters.\n\nRULES:\n- Length: 250-300 words\n- Tone: Professional but enthusiastic\n- Structure:\n  * Para 1: Hook (why excited about THIS company/role)\n  * Para 2: Relevant experience (2-3 specific achievements)\n  * Para 3: Call to action + GitHub link\n- Avoid: Generic phrases, desperation, over-qualification\n- Include: Specific technologies from job description\n\nCANDIDATE INFO:\n- Name: [Your Name]\n- Role: Java Spring Boot Engineer\n- GitHub: github.com/piston-head\n- Key Projects: Microservices handling 10K+ rps, OAuth2 auth for 50K users\n- Certifications: AWS Cloud Practitioner"
+              "content": "You are helping a software engineer write a simple, authentic cover letter. Keep it natural and conversational - like a real person talking, not an AI.\n\nIMPORTANT RULES:\n- Keep it SHORT: 150-200 words (3 short paragraphs)\n- Sound HUMAN: Use simple words, vary sentence length, be genuine\n- Be HONEST: Only mention skills the candidate actually has\n- NO fancy words: Avoid 'delighted', 'thrilled', 'excited to leverage'\n- NO generic phrases: Skip 'passion for technology', 'proven track record'\n- Be SPECIFIC: Mention actual tech from the job (Java, Spring Boot, etc.)\n\nSTRUCTURE:\nPara 1 (2-3 sentences): Why this job caught your eye. Be specific about what interests you.\nPara 2 (2-3 sentences): Mention 1-2 relevant things you've worked on. Keep it simple.\nPara 3 (1-2 sentences): Say you'd like to talk more. Include GitHub if relevant.\n\nCANDIDATE INFO:\n- Name: [Your Name]\n- Experience: Java Spring Boot development\n- Skills: Spring Boot, JPA, Security, Docker, AWS basics\n- GitHub: github.com/piston-head\n- Location: India"
             },
             {
               "role": "user",
-              "content": "Write a cover letter for:\n\nCOMPANY: {{$json.company}}\nROLE: {{$json.title}}\nLOCATION: {{$json.location}}\n\nJOB DESCRIPTION:\n{{$json.description}}\n\nMATCH INSIGHTS:\n{{$json.ai_evaluation.reasoning}}\nMatched: {{$json.ai_evaluation.matched_skills}}\nMissing: {{$json.ai_evaluation.missing_skills}}"
+              "content": "Write a short, natural cover letter for this job. Make it sound like a real person wrote it - not too formal, not too casual. Only mention skills from the matched list.\n\nCOMPANY: {{$json.company}}\nROLE: {{$json.title}}\nLOCATION: {{$json.location}}\n\nWHAT THEY WANT:\n{{$json.description}}\n\nWHAT YOU HAVE:\nMatched Skills: {{$json.ai_evaluation.matched_skills}}\n\nKEEP IT SIMPLE: Just 3 short paragraphs. Be yourself. Don't oversell."
             }
           ]
         }
